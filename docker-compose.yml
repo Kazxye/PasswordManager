@@ -1,0 +1,72 @@
+services:
+  # --- PostgreSQL 16 ---
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vaultkeeper
+      POSTGRES_PASSWORD: vaultkeeper_dev_2024
+      POSTGRES_DB: vaultkeeper
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vaultkeeper"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vault_network
+
+  # --- Redis 7 ---
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vault_network
+    # No volume — Redis is ephemeral (sessions, rate limits, token blacklist)
+
+  # --- FastAPI Backend ---
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app  # Hot reload in dev — code changes reflect immediately
+    networks:
+      - vault_network
+
+  # --- Nginx Reverse Proxy ---
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+    networks:
+      - vault_network
+
+volumes:
+  postgres_data:  # Persistent — survives container restarts
+
+networks:
+  vault_network:
+    driver: bridge
