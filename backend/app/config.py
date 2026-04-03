@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     redis_port: int = 6379
 
     # --- JWT ---
-    jwt_secret_key: str = "CHANGE_ME"
+    jwt_secret_key: str = "1cb8759d0d474b33c2acae1021554cbd4017ead8302847808b77649e7fbad2374b6717c2ab25b1fedaa19d7bd647fca2b73ffa8573b83a417243e9b049bd9cb3"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
 
