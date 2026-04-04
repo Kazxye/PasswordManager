@@ -5,6 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
+from .middleware.rate_limiter import RateLimitMiddleware
+from .middleware.request_id import RequestIDMiddleware
+from .routers.auth import router as auth_router
 from .utils.redis_client import close_redis, get_redis
 
 # Structured logging — timestamp format optimized for log analysis
@@ -43,14 +46,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="VaultKeeper API",
     version="0.1.0",
-    docs_url="/docs" if settings.is_development else None,  # Swagger disabled in prod
+    docs_url="/docs" if settings.is_development else None,
     redoc_url=None,
     lifespan=lifespan,
 )
 
-# --- CORS ---
-# Restricted to frontend origin — no wildcards
-# allow_credentials=True is required for HttpOnly cookie (refresh token)
+# --- Middleware ---
+# Order matters: first added = outermost (executes first on request, last on response)
+# RequestID first so every request (including rate-limited ones) gets an ID
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+# CORS must be outermost to handle preflight OPTIONS requests before anything else
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -58,6 +65,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+# --- Routers ---
+app.include_router(auth_router)
 
 
 @app.get("/health")

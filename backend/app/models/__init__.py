@@ -36,3 +36,8 @@ class TimestampMixin:
         onupdate=func.now(),
         nullable=False,
     )
+
+from .user import User
+from .vault import Vault
+from .entry import Entry
+from .audit_log import AuditLog

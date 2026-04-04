@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..models.user import User
-from ..utils.redis_client import redis_client
+from ..utils.redis_client import get_redis
 from ..utils.security import (
     create_access_token,
     decode_access_token,
@@ -99,11 +99,8 @@ async def login_user(
     refresh_token = generate_refresh_token()
 
     # Store refresh token in Redis — one active session per user
-    await redis_client.set(
-        f"{REFRESH_PREFIX}{user_id_str}",
-        refresh_token,
-        ex=REFRESH_TTL,
-    )
+    redis = await get_redis()
+    await redis.set(f"{REFRESH_PREFIX}{user_id_str}", refresh_token, ex=REFRESH_TTL)
 
     logger.info("User logged in: %s", user.id)
 
@@ -115,23 +112,13 @@ async def login_user(
 
 
 async def refresh_session(refresh_token: str, user_id: str) -> dict:
-    """Rotate refresh token and issue new access token.
-
-    Steps:
-      1. Validate refresh token against Redis
-      2. Delete old refresh token (rotation)
-      3. Generate new access + refresh tokens
-      4. Store new refresh token in Redis
-    """
     redis_key = f"{REFRESH_PREFIX}{user_id}"
 
-    # Validate — compare against stored token
-    stored_token = await redis_client.get(redis_key)
+    redis = await get_redis()
+    stored_token = await redis.get(redis_key)
 
     if not stored_token or stored_token != refresh_token:
-        # Token mismatch could mean replay attack or stolen token
-        # Revoke everything for this user as a precaution
-        await redis_client.delete(redis_key)
+        await redis.delete(redis_key)
         logger.warning(
             "Refresh token mismatch for user=%s — possible replay attack", user_id
         )
@@ -140,17 +127,12 @@ async def refresh_session(refresh_token: str, user_id: str) -> dict:
             detail="Invalid refresh token",
         )
 
-    # Rotation: delete old, generate new
-    await redis_client.delete(redis_key)
+    await redis.delete(redis_key)
 
     new_access_token = create_access_token(user_id)
     new_refresh_token = generate_refresh_token()
 
-    await redis_client.set(
-        redis_key,
-        new_refresh_token,
-        ex=REFRESH_TTL,
-    )
+    await redis.set(redis_key, new_refresh_token, ex=REFRESH_TTL)
 
     logger.info("Session refreshed for user=%s", user_id)
 
@@ -161,23 +143,13 @@ async def refresh_session(refresh_token: str, user_id: str) -> dict:
 
 
 async def logout_user(user_id: str, jti: str, token_exp: int) -> None:
-    """Revoke all tokens for a user session.
-
-    Steps:
-      1. Delete refresh token from Redis
-      2. Blacklist current JWT (by jti) with TTL = remaining lifetime
-    """
-    # Revoke refresh token
-    await redis_client.delete(f"{REFRESH_PREFIX}{user_id}")
-
-    # Blacklist JWT — TTL ensures it auto-cleans after the JWT would have expired
     import time
+
+    redis = await get_redis()
+    await redis.delete(f"{REFRESH_PREFIX}{user_id}")
+
     remaining = token_exp - int(time.time())
     if remaining > 0:
-        await redis_client.set(
-            f"{BLACKLIST_PREFIX}{jti}",
-            "1",
-            ex=remaining,
-        )
+        await redis.set(f"{BLACKLIST_PREFIX}{jti}", "1", ex=remaining)
 
     logger.info("User logged out: %s | jti blacklisted: %s", user_id, jti)

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies.database import get_db
 from ..models.user import User
-from ..utils.redis_client import redis_client
+from ..utils.redis_client import get_redis
 from ..utils.security import decode_access_token
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,8 @@ async def get_current_user(
         )
 
     # Step 2: Check blacklist — logout adds jti to Redis
-    blacklisted = await redis_client.get(f"blacklist:{jti}")
+    redis = await get_redis()
+    blacklisted = await redis.get(f"blacklist:{jti}")
     if blacklisted:
         logger.warning("Blacklisted JWT used: jti=%s user=%s", jti, user_id)
         raise HTTPException(
