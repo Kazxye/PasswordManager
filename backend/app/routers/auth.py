@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies.auth import get_current_user
@@ -13,33 +13,40 @@ from ..schemas.auth import (
     TokenResponse,
 )
 from ..services.auth_service import login_user, logout_user, register_user, refresh_session
+from ..services.audit_service import log_audit_event
+from ..utils.security import decode_access_token, decode_access_token_no_verify_exp
 from ..config import settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
-# Cookie config — centralized to avoid inconsistencies
 COOKIE_NAME = "refresh_token"
 COOKIE_MAX_AGE = settings.refresh_token_expire_days * 86400
-COOKIE_PATH = "/api/v1/auth"  # Cookie only sent to auth endpoints
+COOKIE_PATH = "/api/v1/auth"
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract real client IP, respecting X-Forwarded-For from Nginx."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
-    """Set refresh token as HttpOnly cookie with security flags."""
     response.set_cookie(
         key=COOKIE_NAME,
         value=refresh_token,
-        httponly=True,      # JavaScript cannot read it — immune to XSS
-        secure=True,        # Only sent over HTTPS
-        samesite="strict",  # Not sent on cross-origin requests — CSRF protection
-        path=COOKIE_PATH,   # Scoped to auth endpoints only
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        path=COOKIE_PATH,
         max_age=COOKIE_MAX_AGE,
     )
 
 
 def _clear_refresh_cookie(response: Response) -> None:
-    """Remove refresh token cookie from the browser."""
     response.delete_cookie(
         key=COOKIE_NAME,
         httponly=True,
@@ -51,25 +58,41 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 @router.post("/register", response_model=MessageResponse, status_code=201)
 async def register(
+    request: Request,
     request_data: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    await register_user(request_data.email, request_data.auth_key, db)
+    user = await register_user(request_data.email, request_data.auth_key, db)
+
+    await log_audit_event(
+        db=db,
+        user_id=user.id,
+        action="register",
+        ip_address=_get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
+
     return MessageResponse(message="created")
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
+    request: Request,
     request_data: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
     result = await login_user(request_data.email, request_data.auth_key, db)
 
-    # Refresh token goes in cookie, NOT in response body
-    _set_refresh_cookie(response, result["refresh_token"])
+    await log_audit_event(
+        db=db,
+        user_id=result["user_id"],
+        action="login",
+        ip_address=_get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
 
-    # Access token goes in response body
+    _set_refresh_cookie(response, result["refresh_token"])
     return TokenResponse(access_token=result["access_token"])
 
 
@@ -77,21 +100,17 @@ async def login(
 async def refresh(
     request: Request,
     response: Response,
+    db: AsyncSession = Depends(get_db),
 ):
-    # Refresh token comes from the cookie
     refresh_token = request.cookies.get(COOKIE_NAME)
     if not refresh_token:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token missing",
         )
 
-    # Extract user_id from JWT — even if expired, signature is still validated
-    from ..utils.security import decode_access_token_no_verify_exp
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Access token missing",
@@ -101,7 +120,6 @@ async def refresh(
     try:
         payload = decode_access_token_no_verify_exp(token)
     except Exception:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
@@ -109,13 +127,20 @@ async def refresh(
 
     user_id = payload.get("sub")
     if not user_id:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Malformed token",
         )
 
     result = await refresh_session(refresh_token, user_id)
+
+    await log_audit_event(
+        db=db,
+        user_id=user_id,
+        action="refresh",
+        ip_address=_get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
 
     _set_refresh_cookie(response, result["refresh_token"])
     return TokenResponse(access_token=result["access_token"])
@@ -126,9 +151,8 @@ async def logout(
     request: Request,
     response: Response,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    # Extract jti and exp from the current JWT for blacklisting
-    from ..utils.security import decode_access_token
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     payload = decode_access_token(token)
 
@@ -138,7 +162,13 @@ async def logout(
         token_exp=payload["exp"],
     )
 
-    # Clear the cookie from the browser
-    _clear_refresh_cookie(response)
+    await log_audit_event(
+        db=db,
+        user_id=current_user.id,
+        action="logout",
+        ip_address=_get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
 
+    _clear_refresh_cookie(response)
     return MessageResponse(message="logged out")
