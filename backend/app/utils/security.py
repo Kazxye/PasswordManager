@@ -78,4 +78,15 @@ def decode_access_token(token:str) -> dict: # Decode and validate a JWT access t
 def generate_refresh_token() -> str: # Generate a secure random string to be used as a refresh token. Returns the token string.
     return secrets.token_hex(64)
 
-
+def decode_access_token_no_verify_exp(token: str) -> dict: # Decode JWT without checking expiration — used only for /refresh
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options={"verify_exp": False},
+        )
+        return payload
+    except JWTError as e:
+        logger.warning("JWT decode (no exp) failed: %s", e)
+        raise
