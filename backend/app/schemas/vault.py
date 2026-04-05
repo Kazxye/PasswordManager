@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
-def  _validate_base64(value, field_name, min_len = 1, max_len=10240): # Global Reusable base64 check
+def  validate_base64(value, field_name, min_len = 1, max_len=10240): # Global Reusable base64 check
     if len(value) < min_len:
         raise ValueError(f"'{field_name}' is too short")
     if len(value) > max_len:
@@ -21,12 +21,18 @@ class VaultCreate(BaseModel):
     @field_validator("name_encrypted")
     @classmethod
     def validate_name_encrypted(cls, v):
-        return _validate_base64(v, "name_encrypted",min_len=1)
+        return validate_base64(v, "name_encrypted")
 
     @field_validator("name_iv")
     @classmethod
     def validate_name_iv(cls, v):
-        return _validate_base64(v, "name_iv", max_len=64)
+        if v != v.strip():
+            raise ValueError("name_iv must not contain whitespace")
+        if len(v) != 16:
+            raise ValueError("name_iv must be exactly 16 characters long")
+        if not re.match(r"^[A-Za-z0-9+/=]+$", v):
+            raise ValueError("name_iv must be a valid base64")
+        return v
 
 
 class VaultUpdate(BaseModel):
@@ -36,12 +42,18 @@ class VaultUpdate(BaseModel):
     @field_validator("name_encrypted")
     @classmethod
     def validate_name_encrypted(cls, v):
-        return _validate_base64(v, "name_encrypted",min_len=1)
+        return validate_base64(v, "name_encrypted")
 
     @field_validator("name_iv")
     @classmethod
     def validate_name_iv(cls, v):
-        return _validate_base64(v, "name_iv", max_len=64)
+        if v != v.strip():
+            raise ValueError("name_iv must not contain whitespace")
+        if len(v) != 16:
+            raise ValueError("name_iv must be exactly 16 characters long")
+        if not re.match(r"^[A-Za-z0-9+/=]+$", v):
+            raise ValueError("name_iv must be a valid base64")
+        return v
 
 
 class VaultResponse(BaseModel):
@@ -52,5 +64,3 @@ class VaultResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
-
-
