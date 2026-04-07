@@ -8,6 +8,9 @@ from .config import settings
 from .middleware.rate_limiter import RateLimitMiddleware
 from .middleware.request_id import RequestIDMiddleware
 from .routers.auth import router as auth_router
+from .routers.vaults import router as vaults_router
+from .routers.entries import router as entries_router
+from .routers.audit import router as audit_router
 from .utils.redis_client import close_redis, get_redis
 
 # Structured logging — timestamp format optimized for log analysis
@@ -68,6 +71,9 @@ app.add_middleware(
 
 # --- Routers ---
 app.include_router(auth_router)
+app.include_router(vaults_router)
+app.include_router(entries_router)
+app.include_router(audit_router)
 
 
 @app.get("/health")
