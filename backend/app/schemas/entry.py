@@ -1,8 +1,10 @@
 import re
+import base64
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, field_validator
-from .vault import validate_base64
+from .validators import validate_base64
+
 
 class EntryCreate(BaseModel):
     data_encrypted: str
@@ -55,3 +57,10 @@ class EntryResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("data_encrypted", "data_iv", mode="before")
+    @classmethod
+    def bytes_to_base64(cls, v):
+        if isinstance(v, bytes):
+            return base64.b64encode(v).decode("ascii")
+        return v

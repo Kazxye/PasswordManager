@@ -1,3 +1,4 @@
+import base64
 import logging
 import uuid
 
@@ -14,6 +15,8 @@ from ..services.audit_service import log_audit_event
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/vaults", tags=["vaults"])
+
+
 def _get_client_ip(request: Request) -> str:
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:

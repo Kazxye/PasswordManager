@@ -1,17 +1,9 @@
 import re
+import base64
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, field_validator
-
-
-def  validate_base64(value, field_name, min_len = 1, max_len=10240): # Global Reusable base64 check
-    if len(value) < min_len:
-        raise ValueError(f"'{field_name}' is too short")
-    if len(value) > max_len:
-        raise ValueError(f"'{field_name}' is too long")
-    if not re.match(r"^[A-Za-z0-9+/=]+$", value):
-        raise ValueError(f"'{field_name}' is invalid")
-    return value
+from pydantic import BaseModel, field_validator
+from .validators import validate_base64
 
 
 class VaultCreate(BaseModel):
@@ -64,3 +56,11 @@ class VaultResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("name_encrypted", "name_iv", mode="before")
+    @classmethod
+    def bytes_to_base64(cls, v):
+        # SQLAlchemy returns bytes (LargeBinary), API returns base64 strings
+        if isinstance(v, bytes):
+            return base64.b64encode(v).decode("ascii")
+        return v
