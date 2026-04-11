@@ -35,6 +35,13 @@ interface VaultState {
     deleteEntry: (vaultId: string, entryId: string) => Promise<void>;
 }
 
+// Retrieves enc_key from auth store or throws if session is expired/cleared
+function getEncKey(): Uint8Array {
+    const encKey = useAuthStore.getState().encKey;
+    if (!encKey) throw new Error("Session expired: enc_key not available");
+    return encKey;
+}
+
 export const useVaultStore = create<VaultState>((set, get) => ({
     vaults: [],
     entries: {},
@@ -45,7 +52,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         set({ loadingVaults: true });
         try {
             const { data } = await api.get("/vaults/");
-            const encKey = useAuthStore.getState().encKey!;
+            const encKey = getEncKey();
 
             const decrypted: Vault[] = await Promise.all(
                 data.map(async (v: { id: string; name_encrypted: string; name_iv: string; created_at: string; updated_at: string }) => ({
@@ -66,7 +73,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     },
 
     createVault: async (name) => {
-        const encKey = useAuthStore.getState().encKey!;
+        const encKey = getEncKey();
         const encrypted = await encryptData(encKey, name);
 
         await api.post("/vaults/", {
@@ -91,7 +98,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         set({ loadingEntries: true });
         try {
             const { data } = await api.get(`/vaults/${vaultId}/entries`);
-            const encKey = useAuthStore.getState().encKey!;
+            const encKey = getEncKey();
 
             const decrypted: VaultEntry[] = await Promise.all(
                 data.map(async (e: { id: string; data_encrypted: string; data_iv: string }) => {
@@ -110,7 +117,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     },
 
     createEntry: async (vaultId, entry) => {
-        const encKey = useAuthStore.getState().encKey!;
+        const encKey = getEncKey();
         const encrypted = await encryptData(encKey, entry);
 
         await api.post(`/vaults/${vaultId}/entries`, {
@@ -122,7 +129,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     },
 
     updateEntry: async (vaultId, entryId, entry) => {
-        const encKey = useAuthStore.getState().encKey!;
+        const encKey = getEncKey();
         const encrypted = await encryptData(encKey, entry);
 
         await api.put(`/entries/${entryId}`, {
