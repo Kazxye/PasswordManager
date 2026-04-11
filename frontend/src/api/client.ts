@@ -1,12 +1,19 @@
 import axios from "axios";
 import { useAuthStore } from "../stores/authStore";
 
+// Extends Axios config type to include _retry flag used by the 401 interceptor
+declare module "axios" {
+    interface InternalAxiosRequestConfig {
+        _retry?: boolean;
+    }
+}
+
 export const api = axios.create({
     baseURL: "/api/v1",
     withCredentials: true,
 });
 
-// Injeta o JWT em toda request
+// Injects JWT into every outgoing request
 api.interceptors.request.use((config) => {
     const token = useAuthStore.getState().accessToken;
     if (token) {
@@ -14,7 +21,6 @@ api.interceptors.request.use((config) => {
     }
     return config;
 });
-
 
 let isRefreshing = false;
 let queue: Array<(token: string) => void> = [];
@@ -29,6 +35,7 @@ api.interceptors.response.use(
         }
 
         if (isRefreshing) {
+            // Queue concurrent requests while refresh is in progress
             return new Promise((resolve) => {
                 queue.push((token) => {
                     original.headers.Authorization = `Bearer ${token}`;
@@ -45,6 +52,7 @@ api.interceptors.response.use(
                 "/api/v1/auth/refresh",
                 {},
                 {
+                    // Raw axios (not api instance) to avoid triggering this interceptor again
                     withCredentials: true,
                     headers: {
                         Authorization: `Bearer ${useAuthStore.getState().accessToken}`,
@@ -52,17 +60,19 @@ api.interceptors.response.use(
                 }
             );
 
-            const newToken = data.access_token;
+            const newToken: string = data.access_token;
             useAuthStore.getState().setAccessToken(newToken);
+
             queue.forEach((cb) => cb(newToken));
             queue = [];
 
             original.headers.Authorization = `Bearer ${newToken}`;
             return api(original);
-        } catch {
+        } catch (refreshError) {
+            // Refresh failed — session is invalid, force logout
             useAuthStore.getState().logout();
             queue = [];
-            return Promise.reject(error);
+            return Promise.reject(refreshError);
         } finally {
             isRefreshing = false;
         }
