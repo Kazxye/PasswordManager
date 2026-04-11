@@ -1,7 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vite.dev/config/
+import tailwindcss from "@tailwindcss/vite";
+import wasm from "vite-plugin-wasm";
+
+
 export default defineConfig({
-  plugins: [react()],
-})
+    plugins: [react(), tailwindcss(),wasm()],
+    optimizeDeps: {
+        exclude: ['argon2-browser']
+    },
+    server: {
+        proxy: {
+            "/api": {
+                target: "https://localhost",
+                changeOrigin: true,
+                secure: false,
+            },
+        },
+    },
+});

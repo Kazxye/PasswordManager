@@ -1,4 +1,4 @@
-import argon2 from "argon2-browser";
+import * as argon2 from "argon2-browser";
 import { stringToUint8Array, uint8ArrayToBase64 } from "../utils/encoding";
 
 const ARGON2_MEMORY = 65536;
