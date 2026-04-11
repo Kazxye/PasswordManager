@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
 import { api } from "../api/client";
 import { deriveSessionKeys } from "../crypto/keys";
 import { useAuthStore } from "../stores/authStore";
@@ -28,8 +29,14 @@ export function LoginPage() {
 
             setSession(data.access_token, encKey, email);
             navigate("/vaults");
-        } catch {
-            setError("Invalid Email or Password");
+        } catch (err) {
+            if (axios.isAxiosError(err) && err.response?.status === 401) {
+                setError("Invalid email or password");
+            } else {
+                // Catches WASM failures, network errors, unexpected server errors
+                setError("Something went wrong. Please try again.");
+                console.error("[LoginPage] unexpected error:", err);
+            }
         } finally {
             setLoading(false);
         }
@@ -75,7 +82,7 @@ export function LoginPage() {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             className="w-full bg-[#0f1117] border border-[#2e303a] rounded-lg px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 transition-colors"
-                            placeholder="••••••••"
+                            placeholder="????????"
                         />
                     </div>
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
 import { api } from "../api/client";
 import { deriveSessionKeys } from "../crypto/keys";
 
@@ -17,11 +18,11 @@ export function RegisterPage() {
         setError(null);
 
         if (password !== confirm) {
-            setError("Password must match");
+            setError("Passwords do not match");
             return;
         }
         if (password.length < 12) {
-            setError("The password must be at least 12 characters");
+            setError("Password must be at least 12 characters");
             return;
         }
 
@@ -35,8 +36,18 @@ export function RegisterPage() {
             });
 
             navigate("/login");
-        } catch {
-            setError("Error ");
+        } catch (err) {
+            if (axios.isAxiosError(err)) {
+                if (err.response?.status === 409) {
+                    setError("Email already in use");
+                } else {
+                    setError("Registration failed. Please try again.");
+                }
+            } else {
+                // Catches WASM failures, network errors, unexpected server errors
+                setError("Something went wrong. Please try again.");
+                console.error("[RegisterPage] unexpected error:", err);
+            }
         } finally {
             setLoading(false);
         }
@@ -82,7 +93,7 @@ export function RegisterPage() {
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             className="w-full bg-[#0f1117] border border-[#2e303a] rounded-lg px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 transition-colors"
-                            placeholder="least 12 characters"
+                            placeholder="At least 12 characters"
                         />
                     </div>
 
@@ -94,7 +105,7 @@ export function RegisterPage() {
                             onChange={(e) => setConfirm(e.target.value)}
                             required
                             className="w-full bg-[#0f1117] border border-[#2e303a] rounded-lg px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 transition-colors"
-                            placeholder="••••••••"
+                            placeholder="????????"
                         />
                     </div>
 
@@ -103,11 +114,11 @@ export function RegisterPage() {
                         disabled={loading}
                         className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg py-2.5 transition-colors"
                     >
-                        {loading ? "Deriving keys..." : "Sing Up"}
+                        {loading ? "Deriving keys..." : "Sign Up"}
                     </button>
 
                     <p className="text-center text-sm text-gray-500">
-                        Do you already have an account?{" "}
+                        Already have an account?{" "}
                         <Link to="/login" className="text-violet-400 hover:text-violet-300">
                             Log in
                         </Link>
