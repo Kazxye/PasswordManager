@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useVaultStore } from "../stores/vaultStore";
+import { PasswordGenerator } from "../components/PasswordGenerator";
 import type { VaultEntry } from "../stores/vaultStore";
 
 // Clipboard auto-clear timeout. 30s is the standard in password
@@ -100,6 +101,7 @@ function EntryForm({
     submitting: boolean;
 }) {
     const [form, setForm] = useState<EntryFormData>(initial);
+    const [showGenerator, setShowGenerator] = useState(false);
 
     function update(field: keyof EntryFormData, value: string) {
         setForm((prev) => ({ ...prev, [field]: value }));
@@ -153,7 +155,16 @@ function EntryForm({
                     />
                 </div>
                 <div>
-                    <label className="block text-xs text-gray-500 mb-1">Password *</label>
+                    <label className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                        <span>Password *</span>
+                        <button
+                            type="button"
+                            onClick={() => setShowGenerator((v) => !v)}
+                            className="text-violet-400 hover:text-violet-300 transition-colors"
+                        >
+                            {showGenerator ? "Hide generator" : "Generate"}
+                        </button>
+                    </label>
                     <input
                         type="password"
                         value={form.password}
@@ -164,6 +175,17 @@ function EntryForm({
                     />
                 </div>
             </div>
+
+            {/* Password generator — toggled inline */}
+            {showGenerator && (
+                <PasswordGenerator
+                    onUse={(generated) => {
+                        update("password", generated);
+                        setShowGenerator(false);
+                    }}
+                />
+            )}
+
             <div>
                 <label className="block text-xs text-gray-500 mb-1">Notes</label>
                 <textarea

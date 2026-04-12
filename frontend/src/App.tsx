@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { VaultList } from "./pages/VaultList";
-import { EntryDetail } from "./pages/EntrDetail";
+import { EntryDetail } from "./pages/EntryDetail.tsx";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAutoLock } from "./hooks/useAutoLock";
 

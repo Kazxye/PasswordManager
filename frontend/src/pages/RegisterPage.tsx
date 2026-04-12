@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { isAxiosError } from "axios";
 import { register } from "../api/auth";
+import { StrengthMeter } from "../components/StrengthMeter.tsx";
 
 export function RegisterPage() {
     const navigate = useNavigate();
@@ -83,6 +84,7 @@ export function RegisterPage() {
                             className="w-full bg-[#0f1117] border border-[#2e303a] rounded-lg px-4 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-violet-500 transition-colors"
                             placeholder="At least 12 characters"
                         />
+                        <StrengthMeter password={password} />
                     </div>
 
                     <div>
