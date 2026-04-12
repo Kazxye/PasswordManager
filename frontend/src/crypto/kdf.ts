@@ -1,5 +1,25 @@
-import * as argon2 from "argon2-browser";
 import { stringToUint8Array, uint8ArrayToBase64 } from "../utils/encoding";
+
+declare global {
+    interface Window {
+        argon2: {
+            hash: (opts: {
+                pass: string;
+                salt: Uint8Array;
+                time: number;
+                mem: number;
+                parallelism: number;
+                hashLen: number;
+                type: number;
+            }) => Promise<{ hash: Uint8Array; hashHex: string; encoded: string }>;
+            ArgonType: {
+                Argon2d: 0;
+                Argon2i: 1;
+                Argon2id: 2;
+            };
+        };
+    }
+}
 
 const ARGON2_MEMORY = 65536;
 const ARGON2_ITERATIONS = 3;
@@ -23,14 +43,17 @@ async function deriveMasterKeyMaterial(
     const salt = await deriveSalt(email);
 
     const startedAt = performance.now();
-    const result = await argon2.hash({
+    // argon2-browser is loaded as UMD via <script> tag in index.html
+    // because its ES module build is incompatible with Vite. Accessed
+    // through window.argon2 ? see Phase 4 setup notes.
+    const result = await window.argon2.hash({
         pass: password,
         salt,
         time: ARGON2_ITERATIONS,
         mem: ARGON2_MEMORY,
         parallelism: ARGON2_PARALLELISM,
         hashLen: ARGON2_HASH_LENGTH,
-        type: argon2.ArgonType.Argon2id,
+        type: window.argon2.ArgonType.Argon2id,
     });
     const elapsedMs = Math.round(performance.now() - startedAt);
 
