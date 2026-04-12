@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
-import { api } from "../api/client";
-import { deriveSessionKeys } from "../crypto/keys";
-import { useAuthStore } from "../stores/authStore";
+import { isAxiosError } from "axios";
+import { login } from "../api/auth";
 
 export function LoginPage() {
     const navigate = useNavigate();
-    const setSession = useAuthStore((s) => s.setSession);
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -20,20 +17,12 @@ export function LoginPage() {
         setLoading(true);
 
         try {
-            const { authKey, encKey } = await deriveSessionKeys(password, email);
-
-            const { data } = await api.post("/auth/login", {
-                email,
-                auth_key: authKey,
-            });
-
-            setSession(data.access_token, encKey, email);
+            await login(email, password);
             navigate("/vaults");
         } catch (err) {
-            if (axios.isAxiosError(err) && err.response?.status === 401) {
+            if (isAxiosError(err) && err.response?.status === 401) {
                 setError("Invalid email or password");
             } else {
-                // Catches WASM failures, network errors, unexpected server errors
                 setError("Something went wrong. Please try again.");
                 console.error("[LoginPage] unexpected error:", err);
             }

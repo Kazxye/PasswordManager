@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
-import { api } from "../api/client";
-import { deriveSessionKeys } from "../crypto/keys";
+import { isAxiosError } from "axios";
+import { register } from "../api/auth";
 
 export function RegisterPage() {
     const navigate = useNavigate();
@@ -28,23 +27,12 @@ export function RegisterPage() {
 
         setLoading(true);
         try {
-            const { authKey } = await deriveSessionKeys(password, email);
-
-            await api.post("/auth/register", {
-                email,
-                auth_key: authKey,
-            });
-
+            await register(email, password);
             navigate("/login");
         } catch (err) {
-            if (axios.isAxiosError(err)) {
-                if (err.response?.status === 409) {
-                    setError("Email already in use");
-                } else {
-                    setError("Registration failed. Please try again.");
-                }
+            if (isAxiosError(err) && err.response?.status === 409) {
+                setError("Email already in use");
             } else {
-                // Catches WASM failures, network errors, unexpected server errors
                 setError("Something went wrong. Please try again.");
                 console.error("[RegisterPage] unexpected error:", err);
             }
