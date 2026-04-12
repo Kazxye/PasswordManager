@@ -54,12 +54,22 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """Parses JSON string from env into a Python list."""
-        try:
-            return json.loads(self.cors_origins)
-        except (json.JSONDecodeError, TypeError):
-            logger.warning("Failed to parse CORS_ORIGINS, falling back to empty list")
+        """Parses CORS origins from env. Accepts comma-separated or JSON array."""
+        raw = self.cors_origins.strip()
+        if not raw:
             return []
+
+        # Try JSON first (backwards compat)
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [o.strip() for o in parsed if o.strip()]
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # Fallback: comma-separated
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
     @property
     def is_development(self) -> bool:

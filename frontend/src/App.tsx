@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { VaultList } from "./pages/VaultList";
-import { EntryDetail } from "./pages/EntryDetail.tsx";
+import { EntryDetail } from "./pages/EntryDetail";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { useAutoLock } from "./hooks/useAutoLock";
 
@@ -14,6 +15,7 @@ function AppRoutes() {
     return (
         <Routes>
             {/* Public routes */}
+            <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
@@ -36,7 +38,7 @@ function AppRoutes() {
             />
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );
 }

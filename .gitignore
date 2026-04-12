@@ -27,4 +27,4 @@ Thumbs.db
 htmlcov/
 .coverage
 coverage.xml
-.pytest_cache/
+.pytest_cache/package-lock.json
