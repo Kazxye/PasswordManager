@@ -2,9 +2,9 @@
 
 import logging
 
-from fastapi import HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from ..utils.redis_client import get_redis
 
@@ -51,14 +51,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "Rate limit exceeded: ip=%s path=%s count=%s limit=%s",
                     client_ip, path, current, max_requests,
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Too many requests",
+                # JSONResponse instead of HTTPException — BaseHTTPMiddleware
+                # doesn't route exceptions through FastAPI's handler, so
+                # HTTPException surfaces as 500 instead of 429.
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many requests"},
                     headers={"Retry-After": str(ttl)},
                 )
 
-        except HTTPException:
-            raise
         except Exception as e:
             # Redis down — fail open rather than blocking everyone
             logger.error("Rate limiter Redis error: %s", e)
